@@ -188,7 +188,7 @@ local recent_files = function(opts)
 
   -- Remove cwd prefix from all entries in oldfiles
   oldfiles_table = vim.tbl_map(function(file)
-    return file:gsub(cwd, "")
+    return string.gsub(file, cwd:gsub("(%W)","%%%1"), "")
   end, oldfiles_table) 
 
   -- Remove oldfiles from findfiles
