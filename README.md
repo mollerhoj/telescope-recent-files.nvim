@@ -36,3 +36,19 @@ There are other plugins that tackles this, but have their issues:
 - https://github.com/danielfalk/smart-open.nvim (Depends on a sqlite database, and does not integrate with neovims native oldfiles)
 - https://github.com/nvim-telescope/telescope-frecency.nvim (Does not seem to load the oldfiles either?)
 
+# Run on startup
+
+The first thing I do is usually open a file within the current project I'm working in.
+
+Thus, I've set this to run on startup:
+
+```
+vim.api.nvim_create_autocmd('VimEnter',{
+  callback=function()
+    if vim.fn.argc() == 0 then
+      require('telescope').extensions['recent-files'].recent_files({})
+    end
+  end
+})
+```
+
