@@ -188,7 +188,7 @@ local recent_files = function(opts)
 
   -- Remove cwd prefix from all entries in oldfiles
   oldfiles_table = vim.tbl_map(function(file)
-    return string.gsub(file, cwd:gsub("(%W)","%%%1"), "")
+    return string.gsub(file, "^" .. cwd:gsub("(%W)","%%%1"), "")
   end, oldfiles_table) 
 
   -- Remove oldfiles from findfiles
@@ -198,6 +198,16 @@ local recent_files = function(opts)
 
   -- Merge findfiles into oldfiles
   vim.list_extend(oldfiles_table, findfiles_table)
+
+  -- Remove current_file if include_current_file is false
+  if not opts.include_current_file then
+    local current_file = vim.fn.expand "%"
+    string.gsub(current_file, "^" .. cwd:gsub("(%W)","%%%1"), "")
+
+    oldfiles_table = vim.tbl_filter(function(file)
+      return file ~= current_file
+    end, oldfiles_table)
+  end
 
   local finder = finders.new_table {
     results = oldfiles_table,
