@@ -8,16 +8,16 @@ In other words, it searches for files in the current directory, and displays fil
 
 Lazy:
 ```
-   {
-    'nvim-telescope/telescope.nvim',
-    tag = '0.1.5',
-    dependencies = {
-      'mollerhoj/telescope-recent-files.nvim',
-    },
-    config = function()
-      require("telescope").load_extension("recent-files")
-    end
-  },
+{
+ 'nvim-telescope/telescope.nvim',
+ tag = '0.1.5',
+ dependencies = {
+   'mollerhoj/telescope-recent-files.nvim',
+ },
+ config = function()
+   require("telescope").load_extension("recent-files")
+ end
+},
 
 -- A keymap
 vim.keymap.set('n', '<leader>f', function()
