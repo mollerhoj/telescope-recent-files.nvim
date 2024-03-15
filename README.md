@@ -5,8 +5,10 @@ An extension for telescope.nvim that combines the results from builtin.oldfiles(
 In other words, it searches for files in the current directory, and displays files in order of how recently they were opened.
 
 # Setup
+
+Lazy:
 ```
-{
+   {
     'nvim-telescope/telescope.nvim',
     tag = '0.1.5',
     dependencies = {
