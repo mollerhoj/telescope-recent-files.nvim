@@ -29,7 +29,7 @@ end, { noremap = true, silent = true })
 
 I made this because I could find a plugin that did exactly what I needed.
 
-I would suggest this functionality be builtin to telescope (I would be quite simple, I would be happy to make a PR)
+I would suggest this functionality be builtin to telescope (It would be quite simple, I would be happy to make a PR).
 
 But based on this discussion, https://github.com/nvim-telescope/telescope.nvim/issues/2109, it seems the maintainers doesn't want it.
 
