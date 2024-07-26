@@ -196,9 +196,6 @@ local recent_files = function(opts)
     return not vim.tbl_contains(oldfiles_table, file)
   end, findfiles_table)
 
-  -- Merge findfiles into oldfiles
-  vim.list_extend(oldfiles_table, findfiles_table)
-
   -- Remove current_file if include_current_file is false
   if not opts.include_current_file then
     local current_file = vim.fn.expand "%"
@@ -207,7 +204,25 @@ local recent_files = function(opts)
     oldfiles_table = vim.tbl_filter(function(file)
       return file ~= current_file
     end, oldfiles_table)
+
+    findfiles_table = vim.tbl_filter(function(file)
+      return file ~= current_file
+    end, findfiles_table)
   end
+
+  -- Try to prioritize matches from oldfiles when searching
+  local num_oldfiles = #oldfiles_table
+  opts.tiebreak = function(current_entry, existing_entry, _)
+    -- Use default ordering for files not in oldfiles_table
+    if current_entry.index > num_oldfiles and existing_entry.index > num_oldfiles then
+      return #current_entry.ordinal < #existing_entry.ordinal
+    end
+    -- Otherwise favor the more recent file
+    return current_entry.index < existing_entry.index
+  end
+
+  -- Merge findfiles into oldfiles
+  vim.list_extend(oldfiles_table, findfiles_table)
 
   local finder = finders.new_table {
     results = oldfiles_table,
