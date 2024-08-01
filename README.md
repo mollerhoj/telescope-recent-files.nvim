@@ -27,7 +27,7 @@ end, { noremap = true, silent = true })
 
 # Alternatives
 
-I made this because I could find a plugin that did exactly what I needed.
+I made this because I couldn't find a plugin that did exactly what I needed.
 
 I would suggest this functionality be builtin to telescope (It would be quite simple, I would be happy to make a PR).
 
