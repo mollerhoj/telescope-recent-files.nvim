@@ -5,6 +5,8 @@ local finders = require "telescope.finders"
 local conf = require("telescope.config").values
 local utils = require "telescope.utils"
 
+local config = {}
+
 local function buf_in_cwd(bufname, cwd)
   if cwd:sub(-1) ~= Path.path.sep then
     cwd = cwd .. Path.path.sep
@@ -23,6 +25,7 @@ local recent_files = function(opts)
   ---------------------------------------------------------------------------
   -- Findfiles extension
   ---------------------------------------------------------------------------
+  opts = vim.tbl_extend("force", config, opts or {})
   local find_command = (function()
     if opts.find_command then
       if type(opts.find_command) == "function" then
@@ -241,8 +244,8 @@ local recent_files = function(opts)
 end
 
 return require("telescope").register_extension {
-  setup = function(ext_config, config)
-    -- access extension config and user config
+  setup = function(ext_config)
+    config = ext_config or {}
   end,
   exports = {
     recent_files = recent_files
