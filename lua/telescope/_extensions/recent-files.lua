@@ -16,7 +16,7 @@ local function buf_in_cwd(bufname, cwd)
 end
 
 local function concatArray(a, b)
-  local result = {table.unpack(a)}
+  local result = { table.unpack(a) }
   table.move(b, 1, #b, #result + 1, result)
   return result
 end
@@ -174,7 +174,12 @@ local recent_files = function(opts)
 
   for _, file in ipairs(vim.v.oldfiles) do
     local file_stat = vim.loop.fs_stat(file)
-    if file_stat and file_stat.type == "file" and not vim.tbl_contains(oldfiles_table, file) and file ~= current_file then
+    if
+      file_stat
+      and file_stat.type == "file"
+      and not vim.tbl_contains(oldfiles_table, file)
+      and file ~= current_file
+    then
       table.insert(oldfiles_table, file)
     end
   end
@@ -192,8 +197,8 @@ local recent_files = function(opts)
 
   -- Remove cwd prefix from all entries in oldfiles
   oldfiles_table = vim.tbl_map(function(file)
-    return string.gsub(file, "^" .. cwd:gsub("(%W)","%%%1"), "")
-  end, oldfiles_table) 
+    return string.gsub(file, "^" .. cwd:gsub("(%W)", "%%%1"), "")
+  end, oldfiles_table)
 
   -- Remove oldfiles from findfiles
   findfiles_table = vim.tbl_filter(function(file)
@@ -203,7 +208,7 @@ local recent_files = function(opts)
   -- Remove current_file if include_current_file is false
   if not opts.include_current_file then
     local current_file = vim.fn.expand "%"
-    string.gsub(current_file, "^" .. cwd:gsub("(%W)","%%%1"), "")
+    string.gsub(current_file, "^" .. cwd:gsub("(%W)", "%%%1"), "")
 
     oldfiles_table = vim.tbl_filter(function(file)
       return file ~= current_file
@@ -249,6 +254,6 @@ return require("telescope").register_extension {
     config = ext_config or {}
   end,
   exports = {
-    recent_files = recent_files
+    recent_files = recent_files,
   },
 }
