@@ -145,10 +145,11 @@ local recent_files = function(opts)
 
   opts.entry_maker = opts.entry_maker or make_entry.gen_from_file(opts)
 
-  table.remove(find_command, 1)
+  local args = vim.deepcopy(find_command)
+  table.remove(args, 1)
   local job = require("plenary.job"):new {
     command = command,
-    args = find_command,
+    args = args,
     cwd = opts.cwd,
     writer = opts.writer,
     enable_recording = true,
