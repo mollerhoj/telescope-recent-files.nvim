@@ -1,12 +1,30 @@
+-- Note: Copies of builtin functions match code from Telescope 0.1.8 release
+
 local Path = require "plenary.path"
 local make_entry = require "telescope.make_entry"
 local pickers = require "telescope.pickers"
 local finders = require "telescope.finders"
 local conf = require("telescope.config").values
 local utils = require "telescope.utils"
+local log = require "telescope.log"
+local async_oneshot_finder = require "telescope.finders.async_oneshot_finder"
+local flatten = utils.flatten
 
-local config = {}
+-- Copied from __internal.lua with no modifications
+local function apply_cwd_only_aliases(opts)
+  local has_cwd_only = opts.cwd_only ~= nil
+  local has_only_cwd = opts.only_cwd ~= nil
 
+  if has_only_cwd and not has_cwd_only then
+    -- Internally, use cwd_only
+    opts.cwd_only = opts.only_cwd
+    opts.only_cwd = nil
+  end
+
+  return opts
+end
+
+-- Copied from __internal.lua with no modifications
 local function buf_in_cwd(bufname, cwd)
   if cwd:sub(-1) ~= Path.path.sep then
     cwd = cwd .. Path.path.sep
@@ -15,17 +33,81 @@ local function buf_in_cwd(bufname, cwd)
   return bufname_prefix == cwd
 end
 
-local function concatArray(a, b)
-  local result = { table.unpack(a) }
-  table.move(b, 1, #b, #result + 1, result)
-  return result
+-- Copy of finders.new_oneshot_job with the following changes:
+-- - Assertion ensuring opts.results is not passed is removed
+-- - The opts.results entry is passed through to async_oneshot_finder
+local new_oneshot_job_alternate = function(command_list, opts)
+  opts = opts or {}
+
+  command_list = vim.deepcopy(command_list)
+  local command = table.remove(command_list, 1)
+
+  return async_oneshot_finder {
+    entry_maker = opts.entry_maker or make_entry.gen_from_string(opts),
+
+    cwd = opts.cwd,
+    maximum_results = opts.maximum_results,
+
+    results = opts.results,
+
+    fn_command = function()
+      return {
+        command = command,
+        args = command_list,
+      }
+    end,
+  }
 end
 
-local recent_files = function(opts)
-  ---------------------------------------------------------------------------
-  -- Findfiles extension
-  ---------------------------------------------------------------------------
-  opts = vim.tbl_extend("force", config, opts or {})
+-- Copy of the builtin.oldfiles picker with the following modifications:
+-- - The final pickers.new(...):find() statement is omitted
+-- - The finder is returned instead
+local builtin_oldfiles_copy = function(opts)
+  opts = apply_cwd_only_aliases(opts)
+  opts.include_current_session = vim.F.if_nil(opts.include_current_session, true)
+
+  local current_buffer = vim.api.nvim_get_current_buf()
+  local current_file = vim.api.nvim_buf_get_name(current_buffer)
+  local results = {}
+
+  if opts.include_current_session then
+    for _, buffer in ipairs(vim.split(vim.fn.execute ":buffers! t", "\n")) do
+      local match = tonumber(string.match(buffer, "%s*(%d+)"))
+      local open_by_lsp = string.match(buffer, "line 0$")
+      if match and not open_by_lsp then
+        local file = vim.api.nvim_buf_get_name(match)
+        if vim.loop.fs_stat(file) and match ~= current_buffer then
+          table.insert(results, file)
+        end
+      end
+    end
+  end
+
+  for _, file in ipairs(vim.v.oldfiles) do
+    local file_stat = vim.loop.fs_stat(file)
+    if file_stat and file_stat.type == "file" and not vim.tbl_contains(results, file) and file ~= current_file then
+      table.insert(results, file)
+    end
+  end
+
+  if opts.cwd_only or opts.cwd then
+    local cwd = opts.cwd_only and vim.loop.cwd() or opts.cwd
+    cwd = cwd .. utils.get_separator()
+    results = vim.tbl_filter(function(file)
+      return buf_in_cwd(file, cwd)
+    end, results)
+  end
+
+  return finders.new_table {
+    results = results,
+    entry_maker = opts.entry_maker or make_entry.gen_from_file(opts),
+  }
+end
+
+-- Copy of the builtin.find_files picker with the following modifications:
+-- - The final pickers.new(...):find() statement is omitted
+-- - The table { opts = ..., find_command = ... } is returned instead
+local builtin_find_files_copy = function(opts)
   local find_command = (function()
     if opts.find_command then
       if type(opts.find_command) == "function" then
@@ -63,7 +145,7 @@ local recent_files = function(opts)
 
   if search_dirs then
     for k, v in pairs(search_dirs) do
-      search_dirs[k] = vim.fn.expand(v)
+      search_dirs[k] = utils.path_expand(v)
     end
   end
 
@@ -140,87 +222,143 @@ local recent_files = function(opts)
   end
 
   if opts.cwd then
-    opts.cwd = vim.fn.expand(opts.cwd)
+    opts.cwd = utils.path_expand(opts.cwd)
   end
 
   opts.entry_maker = opts.entry_maker or make_entry.gen_from_file(opts)
 
-  local args = vim.deepcopy(find_command)
-  table.remove(args, 1)
-  local job = require("plenary.job"):new {
-    command = command,
-    args = args,
-    cwd = opts.cwd,
-    writer = opts.writer,
-    enable_recording = true,
-  }
-  local findfiles_table = job:sync()
+  return { opts = opts, find_command = find_command }
+end
 
-  ---------------------------------------------------------------------------
-  -- Oldfiles extension
-  ---------------------------------------------------------------------------
-  local oldfiles_table = {}
+local starts_with = function(text, prefix)
+  return text:find(prefix, 1, true) == 1
+end
 
-  for _, buffer in ipairs(vim.split(vim.fn.execute ":buffers! t", "\n")) do
-    local match = tonumber(string.match(buffer, "%s*(%d+)"))
-    local open_by_lsp = string.match(buffer, "line 0$")
-    if match and not open_by_lsp then
-      local file = vim.api.nvim_buf_get_name(match)
-      if vim.loop.fs_stat(file) and match ~= current_buffer then
-        table.insert(oldfiles_table, file)
-      end
+local get_absolute_path = function(path)
+  -- The second Path:new() and tostring() is needed to ensure trailing slash is stripped
+  return tostring(Path:new(Path:new(path):absolute()))
+end
+
+local add_trailing_separator_to_path = function(path)
+  if path:sub(#path) == utils.get_separator() then
+    return path
+  else
+    return path .. utils.get_separator()
+  end
+end
+
+local make_relative_path = function(path, cwd_with_trailing_slash)
+  if Path:new(path):is_absolute() then
+    if not starts_with(path, cwd_with_trailing_slash) then
+      return nil
+    else
+      return path:sub(#cwd_with_trailing_slash + 1)
+    end
+  else
+    if starts_with(path, "./") or starts_with(path, ".\\") then
+      return path:sub(3)
+    else
+      return path
     end
   end
+end
 
-  for _, file in ipairs(vim.v.oldfiles) do
-    local file_stat = vim.loop.fs_stat(file)
-    if
-      file_stat
-      and file_stat.type == "file"
-      and not vim.tbl_contains(oldfiles_table, file)
-      and file ~= current_file
-    then
-      table.insert(oldfiles_table, file)
-    end
-  end
+local config = {}
 
-  local cwd = vim.loop.cwd()
-  cwd = cwd .. utils.get_separator()
-  cwd = cwd:gsub([[\]], [[\\]])
-  oldfiles_table = vim.tbl_filter(function(file)
-    return buf_in_cwd(file, cwd)
-  end, oldfiles_table)
+local recent_files = function(opts)
+  -- Merge given opts with opts provided in setup()
+  opts = vim.tbl_extend("force", config, opts or {})
 
-  ---------------------------------------------------------------------------
-  -- Merge findfiles and oldfiles
-  ---------------------------------------------------------------------------
+  -- BUG: Using the root directory as cwd doesn't work (builtin.oldfiles issue)
+  opts.cwd = opts.cwd and get_absolute_path(opts.cwd) or vim.loop.cwd()
+  opts.only_cwd = nil
+  opts.cwd_only = nil
 
-  -- Remove cwd prefix from all entries in oldfiles
-  oldfiles_table = vim.tbl_map(function(file)
-    return string.gsub(file, "^" .. cwd:gsub("(%W)", "%%%1"), "")
-  end, oldfiles_table)
+  local cwd_with_trailing_slash = add_trailing_separator_to_path(opts.cwd)
 
-  -- Remove oldfiles from findfiles
-  findfiles_table = vim.tbl_filter(function(file)
-    return not vim.tbl_contains(oldfiles_table, file)
-  end, findfiles_table)
-
-  -- Remove current_file if include_current_file is false
+  local file_to_exclude = nil
   if not opts.include_current_file then
-    local current_file = vim.fn.expand "%"
-    string.gsub(current_file, "^" .. cwd:gsub("(%W)", "%%%1"), "")
+    local current_file = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
+    if starts_with(current_file, cwd_with_trailing_slash) then
+      file_to_exclude = current_file:sub(#cwd_with_trailing_slash + 1)
+    end
+  end
 
-    oldfiles_table = vim.tbl_filter(function(file)
-      return file ~= current_file
-    end, oldfiles_table)
+  local oldfiles_finder = builtin_oldfiles_copy(opts)
 
-    findfiles_table = vim.tbl_filter(function(file)
-      return file ~= current_file
-    end, findfiles_table)
+  -- Populate initial results from oldfiles, removing cwd prefix from paths
+  opts.results = {}
+  do
+    local invalid_path_found = false
+    for _, entry in ipairs(oldfiles_finder.results) do
+      if entry.filename ~= nil then
+        if starts_with(entry.filename, cwd_with_trailing_slash) then
+          entry.filename = entry.filename:sub(#cwd_with_trailing_slash + 1)
+        else
+          invalid_path_found = true
+        end
+      end
+      opts.results[#opts.results + 1] = entry
+    end
+
+    if invalid_path_found then
+      utils.notify("extension.recent-files", {
+        msg = "One or more paths returned from oldfiles did not start with cwd. Results may have duplicates.",
+        level = "WARN",
+      })
+    end
+  end
+
+  local num_oldfiles = #opts.results
+
+  local oldfiles_lookup = {}
+  for _, entry in ipairs(opts.results) do
+    if entry.filename ~= nil then
+      oldfiles_lookup[entry.filename] = true
+    end
+  end
+
+  local find_files_base = builtin_find_files_copy(opts)
+
+  if find_files_base == nil then
+    return
+  end
+
+  opts = find_files_base.opts
+  local find_command = find_files_base.find_command
+
+  -- Wrap entry_maker to filter out entries already in oldfiles
+  do
+    local original_entry_maker = opts.entry_maker
+    local invalid_path_seen = false
+    opts.entry_maker = function(line)
+      local entry = original_entry_maker(line)
+      if entry ~= nil and entry.filename ~= nil then
+        -- Strip cwd if needed to make path format consistent with existing results
+        local stripped_filename = make_relative_path(entry.filename, cwd_with_trailing_slash)
+
+        if stripped_filename ~= nil then
+          entry.filename = stripped_filename
+        else
+          if not invalid_path_seen then
+            utils.notify("extension.recent-files", {
+              msg = "Find command returned an absolute path that did not start with cwd. Results may have duplicates.",
+              level = "WARN",
+            })
+          end
+          invalid_path_seen = true
+        end
+
+        -- Skip entry if file is in oldfiles
+        if entry.filename == file_to_exclude or oldfiles_lookup[entry.filename] then
+          entry = nil
+        end
+      end
+      return entry
+    end
   end
 
   -- Try to prioritize matches from oldfiles when searching
-  local num_oldfiles = #oldfiles_table
   opts.tiebreak = function(current_entry, existing_entry, _)
     -- Use default ordering for files not in oldfiles_table
     if current_entry.index > num_oldfiles and existing_entry.index > num_oldfiles then
@@ -230,20 +368,11 @@ local recent_files = function(opts)
     return current_entry.index < existing_entry.index
   end
 
-  -- Merge findfiles into oldfiles
-  vim.list_extend(oldfiles_table, findfiles_table)
-
-  local finder = finders.new_table {
-    results = oldfiles_table,
-    entry_maker = opts.entry_maker or make_entry.gen_from_file(opts),
-  }
-
   pickers
     .new(opts, {
-      prompt_title = "Recent Files",
-      __locations_input = true,
-      finder = finder,
-      previewer = conf.grep_previewer(opts),
+      prompt_title = "Find Files (Recent)",
+      finder = new_oneshot_job_alternate(find_command, opts),
+      previewer = conf.file_previewer(opts),
       sorter = conf.file_sorter(opts),
     })
     :find()
