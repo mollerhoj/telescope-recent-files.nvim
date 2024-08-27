@@ -4,7 +4,7 @@ An extension for telescope.nvim that combines the results from builtin.oldfiles(
 
 In other words, it searches for files in the current directory, and displays files in order of how recently they were opened.
 
-# Setup
+## Setup
 
 Lazy:
 ```lua
@@ -24,7 +24,7 @@ Lazy:
 },
 ```
 
-# Options
+## Options
 
 The following options can be specified (default values are given):
 ```lua
@@ -35,7 +35,7 @@ The following options can be specified (default values are given):
 }
 ```
 
-# Alternatives
+## Alternatives
 
 I made this because I couldn't find a plugin that did exactly what I needed.
 
@@ -48,7 +48,7 @@ There are other plugins that tackle this, but they have their issues:
 - https://github.com/danielfalk/smart-open.nvim (depends on a sqlite database, and does not integrate with Neovim's native oldfiles)
 - https://github.com/nvim-telescope/telescope-frecency.nvim (does not seem to load the oldfiles either?)
 
-# Run on startup
+## Run on startup
 
 The first thing I do is usually open a file within the current project I'm working in.
 
