@@ -243,7 +243,7 @@ local get_absolute_path = function(path)
 end
 
 local add_trailing_separator_to_path = function(path)
-  if path:sub(#path) == utils.get_separator() then
+  if path:sub(-1) == utils.get_separator() then
     return path
   else
     return path .. utils.get_separator()
