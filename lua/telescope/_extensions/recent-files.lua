@@ -10,6 +10,9 @@ local log = require "telescope.log"
 local async_oneshot_finder = require "telescope.finders.async_oneshot_finder"
 local flatten = utils.flatten
 
+-- Suppress LuaLS warnings about undefined fields on vim.loop
+vim.loop = vim.uv or vim.loop
+
 -- Copied from __internal.lua with no modifications
 local function apply_cwd_only_aliases(opts)
   local has_cwd_only = opts.cwd_only ~= nil
