@@ -242,20 +242,12 @@ local get_absolute_path = function(path)
   return tostring(Path:new(Path:new(path):absolute()))
 end
 
-local add_trailing_separator_to_path = function(path)
-  if path:sub(-1) == utils.get_separator() then
-    return path
-  else
-    return path .. utils.get_separator()
-  end
-end
-
 local make_relative_path = function(path, cwd_with_trailing_slash)
   if Path:new(path):is_absolute() then
-    if not starts_with(path, cwd_with_trailing_slash) then
-      return nil
-    else
+    if starts_with(path, cwd_with_trailing_slash) then
       return path:sub(#cwd_with_trailing_slash + 1)
+    else
+      return nil
     end
   else
     if starts_with(path, "./") or starts_with(path, ".\\") then
@@ -276,14 +268,17 @@ local recent_files = function(opts)
   opts.only_cwd = nil
   opts.cwd_only = nil
 
-  local cwd_with_trailing_slash = add_trailing_separator_to_path(opts.cwd)
+  local cwd_with_trailing_slash = ""
+  if opts.cwd:sub(-1) == utils.get_separator() then
+    cwd_with_trailing_slash = opts.cwd
+  else
+    cwd_with_trailing_slash = opts.cwd .. utils.get_separator()
+  end
 
   local file_to_exclude = nil
   if not opts.include_current_file then
-    local current_file = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
-    if starts_with(current_file, cwd_with_trailing_slash) then
-      file_to_exclude = current_file:sub(#cwd_with_trailing_slash + 1)
-    end
+    local current_file = vim.api.nvim_buf_get_name(0)
+    file_to_exclude = make_relative_path(current_file, cwd_with_trailing_slash)
   end
 
   local oldfiles_finder = builtin_oldfiles_copy(opts)
@@ -294,8 +289,9 @@ local recent_files = function(opts)
     local invalid_path_found = false
     for _, entry in ipairs(oldfiles_finder.results) do
       if entry.filename ~= nil then
-        if starts_with(entry.filename, cwd_with_trailing_slash) then
-          entry.filename = entry.filename:sub(#cwd_with_trailing_slash + 1)
+        local stripped_filename = make_relative_path(entry.filename, cwd_with_trailing_slash)
+        if stripped_filename ~= nil then
+          entry.filename = stripped_filename
         else
           invalid_path_found = true
         end
@@ -351,8 +347,8 @@ local recent_files = function(opts)
           invalid_path_seen = true
         end
 
-        -- Skip entry if file is in oldfiles
-        if entry.filename == file_to_exclude or oldfiles_lookup[entry.filename] then
+        -- Skip entry if file is in oldfiles or should be excluded
+        if oldfiles_lookup[entry.filename] or entry.filename == file_to_exclude then
           entry = nil
         end
       end
