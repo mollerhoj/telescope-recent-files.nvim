@@ -242,8 +242,17 @@ local get_absolute_path = function(path)
   return tostring(Path:new(Path:new(path):absolute()))
 end
 
+local is_absolute_path = function(path)
+  if not utils.iswin then
+    return path:find "^/" == 1
+  else
+    path = path:gsub("/", "\\")
+    return path:find "^[a-zA-Z]:\\" == 1 or path:find "^\\\\" == 1
+  end
+end
+
 local make_relative_path = function(path, cwd_with_trailing_slash)
-  if Path:new(path):is_absolute() then
+  if is_absolute_path(path) then
     if starts_with(path, cwd_with_trailing_slash) then
       return path:sub(#cwd_with_trailing_slash + 1)
     else
