@@ -65,7 +65,7 @@ end
 -- Copy of the builtin.oldfiles picker with the following modifications:
 -- - The final pickers.new(...):find() statement is omitted
 -- - The finder is returned instead
--- - A fix is added for a bug that occurs when cwd is root
+-- - A line is removed that stops oldfiles from working if cwd is root
 local builtin_oldfiles_copy = function(opts)
   opts = apply_cwd_only_aliases(opts)
   opts.include_current_session = vim.F.if_nil(opts.include_current_session, true)
@@ -96,9 +96,6 @@ local builtin_oldfiles_copy = function(opts)
 
   if opts.cwd_only or opts.cwd then
     local cwd = opts.cwd_only and vim.loop.cwd() or opts.cwd
-    if cwd:sub(-1) ~= utils.get_separator() then
-      cwd = cwd .. utils.get_separator()
-    end
     results = vim.tbl_filter(function(file)
       return buf_in_cwd(file, cwd)
     end, results)
