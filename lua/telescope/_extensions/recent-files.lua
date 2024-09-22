@@ -391,5 +391,11 @@ return require("telescope").register_extension {
   end,
   exports = {
     recent_files = recent_files,
+
+    -- Fix `:Telescope recent-files` command not working.
+    -- Ideally this plugin file would be renamed to recent_files.lua
+    -- and recent_files would be used everywhere, but changing that
+    -- now would break user configs.
+    ["recent-files"] = recent_files,
   },
 }
