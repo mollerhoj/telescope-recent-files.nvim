@@ -15,14 +15,25 @@ Lazy:
    'mollerhoj/telescope-recent-files.nvim',
  },
  config = function()
-   require("telescope").load_extension("recent-files")
+  require('telescope').setup {
+    extensions = {
+      recent_files = {
+        -- customize with your preference
+        previewer = true,
+      },
+    }
+  }
+   require("telescope").load_extension("recent_files")
  end
 },
 
 -- A keymap
 vim.keymap.set('n', '<leader>f', function()
-  require('telescope').extensions['recent-files'].recent_files({})
+  require('telescope').extensions.recent_files.recent_files({})
 end, { noremap = true, silent = true })
+
+-- Or
+vim.keymap.set('n', '<leader>f', '<cmd>Telescope recent_files<cr>', { noremap = true, silent = true })
 ```
 
 # Alternatives
@@ -48,7 +59,7 @@ Thus, I've set this to run on startup:
 vim.api.nvim_create_autocmd('VimEnter',{
   callback=function()
     if vim.fn.argc() == 0 then
-      require('telescope').extensions['recent-files'].recent_files({})
+      require('telescope').extensions['recent_files'].recent_files({})
     end
   end
 })
