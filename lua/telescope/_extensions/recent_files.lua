@@ -249,6 +249,6 @@ return require("telescope").register_extension {
     config = ext_config or {}
   end,
   exports = {
-    recent_files = recent_files
+    recent_files = recent_files,
   },
 }
