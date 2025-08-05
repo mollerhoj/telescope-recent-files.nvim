@@ -97,7 +97,7 @@ local recent_files = function(opts)
   elseif command == "find" then
     if not hidden then
       table.insert(find_command, { "-not", "-path", "*/.*" })
-      find_command = flatten(find_command)
+      find_command = vim.tbl_flatten(find_command)
     end
     if no_ignore ~= nil then
       log.warn "The `no_ignore` key is not available for the `find` command in `find_files`."
